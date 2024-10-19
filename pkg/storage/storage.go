@@ -13,13 +13,13 @@ import (
 
 // Интерфейс для работы с базой данных
 type DBInterface interface {
-	CreateUser(user User) (int, error)
-	GetUserByEmail(email string) (User, error)
-	CreateReferralCode(userID int, code string, expiresAt int64) error
-	DeleteReferralCode(userID int) error
-	GetReferralCodeByEmail(email string) (ReferralCode, error)
-	GetReferralsByReferrerID(referrerID int) ([]User, error)
-	RegisterWithReferralCode(referralCode string, user User) error
+	CreateUser(ctx context.Context, user User) (int, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	CreateReferralCode(ctx context.Context, userID int, code string, expiresAt int64) error
+	DeleteReferralCode(ctx context.Context, userID int) error
+	GetReferralCodeByEmail(ctx context.Context, email string) (ReferralCode, error)
+	GetReferralsByReferrerID(ctx context.Context, referrerID int) ([]User, error)
+	RegisterWithReferralCode(ctx context.Context, referralCode string, user User) error
 }
 
 // Конфигурация БД
@@ -70,12 +70,12 @@ func New(connstr string) (*DB, error) {
 }
 
 // Создание пользователя
-func (db *DB) CreateUser(user User) (int, error) {
+func (db *DB) CreateUser(ctx context.Context, user User) (int, error) {
 	var userID int
-	err := db.pool.QueryRow(context.Background(), `
-		INSERT INTO users (username, email, password)
-		VALUES ($1, $2, $3)
-		RETURNING id`,
+	err := db.pool.QueryRow(ctx, `
+        INSERT INTO users (username, email, password)
+        VALUES ($1, $2, $3)
+        RETURNING id`,
 		user.Username,
 		user.Email,
 		user.Password,
@@ -89,10 +89,10 @@ func (db *DB) CreateUser(user User) (int, error) {
 }
 
 // Получение пользователя по email
-func (db *DB) GetUserByEmail(email string) (User, error) {
+func (db *DB) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	var user User
-	err := db.pool.QueryRow(context.Background(), `
-		SELECT id, username, email, password FROM users WHERE email = $1`, email).
+	err := db.pool.QueryRow(ctx, `
+        SELECT id, username, email, password FROM users WHERE email = $1`, email).
 		Scan(&user.ID, &user.Username, &user.Email, &user.Password)
 	if err != nil {
 		return User{}, err
@@ -101,13 +101,13 @@ func (db *DB) GetUserByEmail(email string) (User, error) {
 }
 
 // Создание реферального кода с проверкой на существующий код
-func (db *DB) CreateReferralCode(userID int, code string, expiresAt int64) error {
+func (db *DB) CreateReferralCode(ctx context.Context, userID int, code string, expiresAt int64) error {
 	// Удаляем существующий активный код перед созданием нового
-	if err := db.DeleteReferralCode(userID); err != nil {
+	if err := db.DeleteReferralCode(ctx, userID); err != nil {
 		return err
 	}
 
-	_, err := db.pool.Exec(context.Background(), `
+	_, err := db.pool.Exec(ctx, `
     INSERT INTO referral_codes (user_id, code, expires_at)
     VALUES ($1, $2, to_timestamp($3))`,
 		userID,
@@ -118,23 +118,23 @@ func (db *DB) CreateReferralCode(userID int, code string, expiresAt int64) error
 }
 
 // Удаление реферального кода
-func (db *DB) DeleteReferralCode(userID int) error {
-	_, err := db.pool.Exec(context.Background(), `
-		DELETE FROM referral_codes WHERE user_id = $1`,
+func (db *DB) DeleteReferralCode(ctx context.Context, userID int) error {
+	_, err := db.pool.Exec(ctx, `
+        DELETE FROM referral_codes WHERE user_id = $1`,
 		userID,
 	)
 	return err
 }
 
 // Получение реферального кода по email
-func (db *DB) GetReferralCodeByEmail(email string) (ReferralCode, error) {
+func (db *DB) GetReferralCodeByEmail(ctx context.Context, email string) (ReferralCode, error) {
 	var referralCode ReferralCode
 	var userID int
-	err := db.pool.QueryRow(context.Background(), `
-		SELECT rc.id, rc.user_id, rc.code, rc.expires_at 
-		FROM referral_codes rc 
-		JOIN users u ON rc.user_id = u.id 
-		WHERE u.email = $1`, email).
+	err := db.pool.QueryRow(ctx, `
+        SELECT rc.id, rc.user_id, rc.code, rc.expires_at 
+        FROM referral_codes rc 
+        JOIN users u ON rc.user_id = u.id 
+        WHERE u.email = $1`, email).
 		Scan(&referralCode.ID, &userID, &referralCode.Code, &referralCode.ExpiresAt)
 
 	if err != nil {
@@ -149,11 +149,11 @@ func (db *DB) GetReferralCodeByEmail(email string) (ReferralCode, error) {
 }
 
 // Получение рефералов по ID реферера
-func (db *DB) GetReferralsByReferrerID(referrerID int) ([]User, error) {
-	rows, err := db.pool.Query(context.Background(), `
-		SELECT u.id, u.username, u.email FROM referral_links rl
-		JOIN users u ON rl.referee_id = u.id
-		WHERE rl.referrer_id = $1`, referrerID)
+func (db *DB) GetReferralsByReferrerID(ctx context.Context, referrerID int) ([]User, error) {
+	rows, err := db.pool.Query(ctx, `
+        SELECT u.id, u.username, u.email FROM referral_links rl
+        JOIN users u ON rl.referee_id = u.id
+        WHERE rl.referrer_id = $1`, referrerID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,11 +171,11 @@ func (db *DB) GetReferralsByReferrerID(referrerID int) ([]User, error) {
 }
 
 // В обработчике регистрации с реферальным кодом
-func (db *DB) RegisterWithReferralCode(referralCode string, user User) error {
+func (db *DB) RegisterWithReferralCode(ctx context.Context, referralCode string, user User) error {
 	// Проверка реферального кода
 	var referrerID int
 	var userID int
-	err := db.pool.QueryRow(context.Background(), `
+	err := db.pool.QueryRow(ctx, `
         SELECT user_id FROM referral_codes WHERE code = $1 AND expires_at > NOW()`, referralCode).
 		Scan(&referrerID)
 	if err != nil {
@@ -184,13 +184,13 @@ func (db *DB) RegisterWithReferralCode(referralCode string, user User) error {
 	}
 
 	// Создание пользователя
-	if userID, err = db.CreateUser(user); err != nil {
+	if userID, err = db.CreateUser(ctx, user); err != nil {
 		log.Printf("Ошибка при создании пользователя: %v", err) // Логируем ошибку
 		return err
 	}
 
 	// Создание записи о реферале
-	_, err = db.pool.Exec(context.Background(), `
+	_, err = db.pool.Exec(ctx, `
         INSERT INTO referral_links (referrer_id, referee_id) VALUES ($1, $2)`,
 		referrerID,
 		userID)

@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorefer.go/pkg/storage"
@@ -35,7 +37,11 @@ func RegisterHandler(db storage.DBInterface) http.HandlerFunc {
 		}
 		user.Password = hashedPassword
 
-		if _, err := db.CreateUser(user); err != nil {
+		// Создаем контекст с таймаутом для взаимодействия с базой данных
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		if _, err := db.CreateUser(ctx, user); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -53,7 +59,11 @@ func LoginHandler(db storage.DBInterface) http.HandlerFunc {
 			return
 		}
 
-		existingUser, err := db.GetUserByEmail(user.Email)
+		// Создаем контекст с таймаутом для взаимодействия с базой данных
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		existingUser, err := db.GetUserByEmail(ctx, user.Email)
 		if err != nil {
 			http.Error(w, "Неверный логин или пароль", http.StatusUnauthorized)
 			return
