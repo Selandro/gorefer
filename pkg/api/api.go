@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"gorefer.go/pkg/api/middlware"
 	"gorefer.go/pkg/auth"
-	"gorefer.go/pkg/middlware"
 	"gorefer.go/pkg/storage"
 )
 
