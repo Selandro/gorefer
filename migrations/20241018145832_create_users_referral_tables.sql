@@ -3,22 +3,22 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,   -- Хэш пароля
+    password VARCHAR(255) NOT NULL,   
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS referral_codes (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    code VARCHAR(50) NOT NULL UNIQUE, -- Уникальный реферальный код
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, -- Срок действия кода
+    code VARCHAR(50) NOT NULL UNIQUE, 
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS referral_links (
     id SERIAL PRIMARY KEY,
-    referrer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Кто пригласил
-    referee_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- Кто зарегистрировался
+    referrer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+    referee_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

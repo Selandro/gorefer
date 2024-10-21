@@ -1,4 +1,3 @@
-// Сервер GoRefer.
 package main
 
 import (
